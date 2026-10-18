@@ -120,11 +120,11 @@ _PLACEHOLDER_VALUES = {"", "x", "xx", "xxx", "xxxx", "changeme", "change-me", "e
 # analyzed from its AST instead, because a regex cannot tell an annotation from a value.
 # The key may be quoted, so that JSON (`{"api_key": "..."}`) reads the same as the YAML,
 # `.env`, `.ini` and shell spellings of the same binding.
-# The leading guard is "not preceded by an alphanumeric" rather than `\b`: a separator
-# may introduce the credential word (`access_token`, `client_secret`, `MY_API_KEY`),
-# which `\b` cannot match because `_` is a word character. A run of letters before the
-# word (`tokenizer`, `secretive`) still stays quiet, so this is not a blanket match.
-_SECRET_ASSIGNMENT_RE = re.compile(r"(?im)(?<![A-Za-z0-9])(token|password|passwd|api[_-]?key|secret|credential)s?\b[\"']?\s*[:=]\s*[\"']?([^\"'\s#]+)")
+# Capture the complete separator-delimited key so usage counters can be distinguished
+# from credentials. The guard prevents restarting inside an identifier; prefixed names
+# such as access_token and MY_API_KEY still match, while mytoken/tokenizer stay quiet.
+_SECRET_ASSIGNMENT_RE = re.compile(r"(?im)(?<![A-Za-z0-9_.-])((?:[A-Za-z0-9_.-]*[_.-])?(?:token|password|passwd|api[_-]?key|secret|credential)s?)\b[\"']?\s*[:=]\s*[\"']?([^\"'\s#]+)")
+_TOKEN_USAGE_COUNT_NAMES = frozenset({"total_tokens", "input_tokens", "output_tokens", "prompt_tokens", "completion_tokens", "cached_tokens"})
 _SECRET_ASSIGNMENT_NAME_RE = re.compile(r"(?i)^(?:token|password|passwd|api[_-]?key|secret|credential)s?$")
 _SECRET_TOKEN_PATTERNS = tuple(
     re.compile(pattern)
@@ -400,6 +400,11 @@ def _scan_secret_assignments_by_text(rel_path: str, text: str) -> list[SecurityF
     """``name[:=]value`` sweep for line-oriented text, and for Python that will not parse."""
     for match in _SECRET_ASSIGNMENT_RE.finditer(text):
         value = match.group(2).strip()
+        # A known usage field with an integer value is a statistic, not a secret.
+        # Permit a trailing JSON delimiter consumed by the line-oriented sweep;
+        # other values and credential names retain their existing treatment.
+        if match.group(1).lower() in _TOKEN_USAGE_COUNT_NAMES and re.fullmatch(r"[0-9]+[,}\]]?", value):
+            continue
         if not _looks_like_placeholder(value):
             return [_finding_from_match("secret-env-assignment", rel_path, text, match)]
     return []
