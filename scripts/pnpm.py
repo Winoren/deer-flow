@@ -21,7 +21,7 @@ def find_corepack_command() -> list[str] | None:
     corepack_names = ("corepack.cmd", "corepack") if os.name == "nt" else ("corepack", "corepack.cmd")
     for name in corepack_names:
         if corepack_path := shutil.which(name):
-            return [str(Path(corepack_path)), "pnpm"]
+            return [str(Path(corepack_path).absolute()), "pnpm"]
     return None
 
 
@@ -30,7 +30,7 @@ def find_pnpm_command() -> list[str] | None:
     pnpm_names = ("pnpm.cmd", "pnpm") if os.name == "nt" else ("pnpm", "pnpm.cmd")
     for name in pnpm_names:
         if pnpm_path := shutil.which(name):
-            return [str(Path(pnpm_path))]
+            return [str(Path(pnpm_path).absolute())]
 
     return find_corepack_command()
 

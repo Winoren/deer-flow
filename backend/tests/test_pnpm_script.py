@@ -144,10 +144,10 @@ def test_version_probe_does_not_read_stdin(monkeypatch):
     assert calls[0]["stdin"] == -3
 
 
-def test_runner_prefers_cmd_shim_on_windows(monkeypatch):
+def test_runner_prefers_cmd_shim_on_windows(tmp_path, monkeypatch):
     paths = {
-        "pnpm": r"C:\tools\pnpm.exe",
-        "pnpm.cmd": r"C:\tools\pnpm.cmd",
+        "pnpm": str(tmp_path / "pnpm.exe"),
+        "pnpm.cmd": str(tmp_path / "pnpm.cmd"),
     }
     find_pnpm_command = PNPM_MODULE["find_pnpm_command"]
     monkeypatch.setitem(find_pnpm_command.__globals__, "os", SimpleNamespace(name="nt"))
@@ -156,10 +156,10 @@ def test_runner_prefers_cmd_shim_on_windows(monkeypatch):
     assert find_pnpm_command() == [paths["pnpm.cmd"]]
 
 
-def test_runner_prefers_corepack_cmd_shim_on_windows(monkeypatch):
+def test_runner_prefers_corepack_cmd_shim_on_windows(tmp_path, monkeypatch):
     paths = {
-        "corepack": r"C:\tools\corepack.exe",
-        "corepack.cmd": r"C:\tools\corepack.cmd",
+        "corepack": str(tmp_path / "corepack.exe"),
+        "corepack.cmd": str(tmp_path / "corepack.cmd"),
     }
     find_pnpm_command = PNPM_MODULE["find_pnpm_command"]
     monkeypatch.setitem(find_pnpm_command.__globals__, "os", SimpleNamespace(name="nt"))
@@ -192,6 +192,20 @@ def test_runner_uses_frontend_directory_when_called_from_repo_root(tmp_path: Pat
 
     assert result.returncode == 0
     assert result.stdout.strip() == f"corepack|{FRONTEND_DIR}|pnpm --version"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows shell uses different executable search rules")
+@pytest.mark.parametrize("name", ["pnpm", "corepack"])
+def test_runner_preserves_relative_path_lookup_after_changing_directory(tmp_path: Path, name: str):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_fake_command(bin_dir, name, name)
+
+    result = _run_pnpm(Path("bin"), "install", cwd=tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    arguments = "pnpm install" if name == "corepack" else "install"
+    assert result.stdout.strip() == f"{name}|{FRONTEND_DIR}|{arguments}"
 
 
 def test_runner_reports_actionable_error_when_pnpm_and_corepack_are_missing(tmp_path: Path):
