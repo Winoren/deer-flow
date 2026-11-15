@@ -133,6 +133,20 @@ def test_non_utf8_dotenv_stops_the_launcher_before_exporting(tmp_path: Path) -> 
     assert result.stdout == ""
 
 
+@pytest.mark.parametrize("quote", ["'", '"'])
+def test_malformed_quoted_value_does_not_consume_the_next_assignment(tmp_path: Path, quote: str) -> None:
+    dotenv = f"BROKEN={quote}unterminated\nFOLLOWING={quote}kept{quote}\nLATER=kept\n"
+
+    result = _run_dotenv_block(tmp_path, dotenv.encode("utf-8"))
+
+    assert result.returncode == 0, result.stderr
+    exported = json.loads(result.stdout)
+    assert "BROKEN" not in exported
+    assert exported["FOLLOWING"] == "kept"
+    assert exported["LATER"] == "kept"
+    assert "does not parse at line 1" in result.stderr
+
+
 @pytest.mark.parametrize("source", ["`touch {marker}`", "$(touch {marker})"])
 def test_parser_runs_on_the_standard_library_and_never_executes(tmp_path: Path, source: str) -> None:
     """serve.sh runs it with the host Python, before ``uv sync`` installs anything."""

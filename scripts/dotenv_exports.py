@@ -98,6 +98,7 @@ def parse_dotenv(text: str, environment: Mapping[str, str]) -> list[tuple[str, s
         position = _LEADING_SPACE.match(text, position).end()
         if position >= len(text):
             break
+        statement_start = position
         line = text.count("\n", 0, position) + 1
         try:
             position = _EXPORT.match(text, position).end()
@@ -128,7 +129,8 @@ def parse_dotenv(text: str, environment: Mapping[str, str]) -> list[tuple[str, s
             position = _match(_END_OF_LINE, text, position).end()
         except _Unparsed:
             print(f"dotenv_exports: skipping a statement that does not parse at line {line}", file=sys.stderr)
-            position = _REST_OF_LINE.match(text, position).end()
+            # A failed quoted match can have advanced onto a later assignment.
+            position = _REST_OF_LINE.match(text, statement_start).end()
             continue
         # A comment, or a bare name without `=`, assigns nothing.
         if key is None or value is None:

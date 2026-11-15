@@ -431,7 +431,8 @@ fences, including unclosed fences, in complete and streamed replies.
    value means what the Gateway reads: `$$`, backticks and `$(...)` stay as
    written, and an unquoted value may contain spaces. `$NAME`, `${NAME}`,
    `${NAME:-default}` and an unquoted leading `~` still expand, and
-   single-quoted values stay literal.
+   single-quoted values stay literal. If an assignment fails to parse, the
+   launcher warns and resumes at the line after the assignment started.
 
    </details>
 
